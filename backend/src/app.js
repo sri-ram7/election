@@ -4,12 +4,23 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import session from "express-session";
 import helmet from "helmet";
+import cors from "cors";
 import { requireAdmin } from "./middleware/adminAuth.js";
 import { createAuthRouter } from "./routes/authRoutes.js";
 import { createVoterRouter } from "./routes/voterRoutes.js";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const frontendDirectory = path.resolve(currentDirectory, "../../frontend/dist");
+
+// Origins that may call this API. In production the FRONTEND_ORIGIN env var
+// must be set to the deployed frontend URL, e.g. https://election-iaj4.onrender.com
+function getAllowedOrigins() {
+  const origins = ["http://127.0.0.1:5173", "http://localhost:5173"];
+  if (process.env.FRONTEND_ORIGIN) {
+    origins.push(process.env.FRONTEND_ORIGIN.trim());
+  }
+  return origins;
+}
 
 export function createApp({
   Voter,
@@ -21,7 +32,23 @@ export function createApp({
   const app = express();
   if (production) app.set("trust proxy", 1);
   app.disable("x-powered-by");
-  app.use(helmet());
+
+  // CORS must come before helmet and routing so preflight OPTIONS requests
+  // receive Access-Control-Allow-* headers.
+  app.use(
+    cors({
+      origin: getAllowedOrigins(),
+      credentials: true,          // allow cookies (session, CSRF)
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "X-CSRF-Token"],
+    }),
+  );
+
+  app.use(helmet({
+    // helmet's crossOriginResourcePolicy blocks fetch from a different origin;
+    // set to cross-origin so the frontend can reach the API.
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }));
   app.use(express.json({ limit: "16kb" }));
   app.use(
     session({
@@ -33,7 +60,10 @@ export function createApp({
       cookie: {
         httpOnly: true,
         secure: production,
-        sameSite: "lax",
+        // Cross-origin deployments (frontend on a different domain) require
+        // sameSite "none" with secure:true so the browser sends the cookie.
+        // On localhost (dev) "lax" is used so cookies work without HTTPS.
+        sameSite: production ? "none" : "lax",
         maxAge: 8 * 60 * 60 * 1000,
       },
     }),
