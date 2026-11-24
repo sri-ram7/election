@@ -15,16 +15,38 @@ export function createVoterRouter({ Voter, ImportRun }) {
 
   router.get("/search", async (req, res, next) => {
     try {
-      const searchStage = buildVoterSearchStage(req.query.q);
       const { page, limit, skip } = parsePagination(
         req.query.page,
         req.query.limit,
       );
+
+      // --- Filters: wardno and age ---
+      const filterMatch = {};
+      const wardnoRaw = req.query.wardno;
+      const ageRaw    = req.query.age;
+      if (wardnoRaw !== undefined && wardnoRaw !== "") {
+        const wardno = Number(wardnoRaw);
+        if (!Number.isInteger(wardno) || wardno < 1) {
+          return res.status(400).json({ error: "wardno must be a positive integer" });
+        }
+        filterMatch.wardno = wardno;
+      }
+      if (ageRaw !== undefined && ageRaw !== "") {
+        const age = Number(ageRaw);
+        if (!Number.isInteger(age) || age < 1 || age > 120) {
+          return res.status(400).json({ error: "age must be between 1 and 120" });
+        }
+        filterMatch.age = age;
+      }
+      const hasFilter = Object.keys(filterMatch).length > 0;
+
+      // --- Sort ---
       const allowedSortFields = new Set(["wardno", "serialNumber", "voterNameEn", "age"]);
       const sortField = allowedSortFields.has(req.query.sortBy) ? req.query.sortBy : null;
       const sortStage = sortField
         ? { $sort: { [sortField]: 1, wardno: 1, serialNumber: 1 } }
         : { $sort: { wardno: 1, serialNumber: 1 } };
+
       const facetStage = {
         $facet: {
           items: [
@@ -51,31 +73,53 @@ export function createVoterRouter({ Voter, ImportRun }) {
       };
 
       let result;
-      try {
-        [result] = await Voter.aggregate([searchStage, facetStage]);
-      } catch (searchError) {
-        if (process.env.NODE_ENV !== "test") {
-          console.warn(
-            "Atlas Search failed, falling back to standard query:",
-            searchError.message,
-          );
-        }
-        const fallbackMatch = buildFallbackMatch(req.query.q);
+      const q = req.query.q;
+
+      if (hasFilter && (!q || !q.trim())) {
+        // Filter only — no text search needed
         [result] = await Voter.aggregate([
-          { $match: fallbackMatch },
+          { $match: filterMatch },
           facetStage,
         ]);
+      } else if (hasFilter) {
+        // Filter + text search
+        const searchStage = buildVoterSearchStage(q);
+        try {
+          [result] = await Voter.aggregate([
+            searchStage,
+            { $match: filterMatch },
+            facetStage,
+          ]);
+        } catch (searchError) {
+          if (process.env.NODE_ENV !== "test") {
+            console.warn("Atlas Search failed, falling back:", searchError.message);
+          }
+          const fallback = buildFallbackMatch(q);
+          [result] = await Voter.aggregate([
+            { $match: { ...fallback, ...filterMatch } },
+            facetStage,
+          ]);
+        }
+      } else {
+        // Text search only (original behaviour)
+        const searchStage = buildVoterSearchStage(q);
+        try {
+          [result] = await Voter.aggregate([searchStage, facetStage]);
+        } catch (searchError) {
+          if (process.env.NODE_ENV !== "test") {
+            console.warn("Atlas Search failed, falling back:", searchError.message);
+          }
+          const fallback = buildFallbackMatch(q);
+          [result] = await Voter.aggregate([
+            { $match: fallback },
+            facetStage,
+          ]);
+        }
       }
 
-      const items = result?.items ?? [];
-      const total = result?.metadata[0]?.total ?? 0;
-      res.json({
-        items,
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      });
+      const items  = result?.items ?? [];
+      const total  = result?.metadata[0]?.total ?? 0;
+      res.json({ items, page, limit, total, totalPages: Math.ceil(total / limit) });
     } catch (error) {
       if (error instanceof TypeError) {
         return res.status(400).json({ error: error.message });

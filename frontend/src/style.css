@@ -351,6 +351,40 @@ dd[lang="te"],
   font-weight: 600;
 }
 
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.filter-label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  font-size: 14px;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.filter-label input[type="number"],
+.filter-label select {
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  width: 100%;
+}
+
+.filter-label input[type="number"]:focus,
+.filter-label select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
 .sort-label {
   margin-top: 14px;
   max-width: 220px;

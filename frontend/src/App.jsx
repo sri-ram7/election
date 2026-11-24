@@ -300,41 +300,34 @@ function ImportDashboard({ csrfToken }) {
 
 function SearchPage({ csrfToken, onSelect }) {
   const [query, setQuery] = useState("");
+  const [wardno, setWardno] = useState("");
+  const [age, setAge] = useState("");
   const [result, setResult] = useState(null);
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState("wardno");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!query.trim()) {
+    // require at least one filter or a search term
+    if (!query.trim() && wardno === "" && age === "") {
       setResult(null);
       return undefined;
     }
     let active = true;
     const timer = window.setTimeout(async () => {
       try {
-        const params = new URLSearchParams({
-          q: query.trim(),
-          page: String(page),
-          limit: "20",
-          sortBy,
-        });
-        const data = await apiRequest(`/api/voters/search?${params}`, {
-          csrfToken,
-        });
-        if (active) {
-          setResult(data);
-          setError("");
-        }
+        const params = new URLSearchParams({ page: String(page), limit: "20", sortBy });
+        if (query.trim()) params.set("q", query.trim());
+        if (wardno !== "") params.set("wardno", wardno);
+        if (age !== "") params.set("age", age);
+        const data = await apiRequest(`/api/voters/search?${params}`, { csrfToken });
+        if (active) { setResult(data); setError(""); }
       } catch (searchError) {
         if (active) setError(messageFrom(searchError));
       }
-    }, 250);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [query, page, sortBy, csrfToken]);
+    }, 300);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [query, wardno, age, page, sortBy, csrfToken]);
 
   return (
     <section className="page-content">
@@ -360,20 +353,43 @@ function SearchPage({ csrfToken, onSelect }) {
             }}
           />
         </label>
-        <label className="search-label sort-label">
-          Sort by
-          <select
-            value={sortBy}
-            onChange={(event) => { setSortBy(event.target.value); setPage(1); }}
-          >
-            <option value="wardno">Ward Number</option>
-            <option value="serialNumber">Serial Number</option>
-            <option value="voterNameEn">Name (A–Z)</option>
-            <option value="age">Age</option>
-          </select>
-        </label>
+        <div className="filter-row">
+          <label className="filter-label">
+            Ward Number
+            <input
+              type="number"
+              min="1"
+              placeholder="e.g. 1"
+              value={wardno}
+              onChange={(event) => { setWardno(event.target.value); setPage(1); }}
+            />
+          </label>
+          <label className="filter-label">
+            Age
+            <input
+              type="number"
+              min="1"
+              max="120"
+              placeholder="e.g. 35"
+              value={age}
+              onChange={(event) => { setAge(event.target.value); setPage(1); }}
+            />
+          </label>
+          <label className="filter-label">
+            Sort by
+            <select
+              value={sortBy}
+              onChange={(event) => { setSortBy(event.target.value); setPage(1); }}
+            >
+              <option value="wardno">Ward Number</option>
+              <option value="serialNumber">Serial Number</option>
+              <option value="voterNameEn">Name (A–Z)</option>
+              <option value="age">Age</option>
+            </select>
+          </label>
+        </div>
         <p className="muted search-help">
-          English-name matching is case-insensitive and partial.
+          Search by name, voter ID, serial, house, or ward — or use the filters below.
         </p>
         {error && <p className="error">{error}</p>}
         {result && (
