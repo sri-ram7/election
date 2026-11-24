@@ -20,10 +20,15 @@ export function createVoterRouter({ Voter, ImportRun }) {
         req.query.page,
         req.query.limit,
       );
+      const allowedSortFields = new Set(["wardno", "serialNumber", "voterNameEn", "age"]);
+      const sortField = allowedSortFields.has(req.query.sortBy) ? req.query.sortBy : null;
+      const sortStage = sortField
+        ? { $sort: { [sortField]: 1, wardno: 1, serialNumber: 1 } }
+        : { $sort: { wardno: 1, serialNumber: 1 } };
       const facetStage = {
         $facet: {
           items: [
-            { $sort: { wardno: 1, serialNumber: 1 } },
+            sortStage,
             { $skip: skip },
             { $limit: limit },
             {

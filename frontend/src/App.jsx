@@ -302,6 +302,7 @@ function SearchPage({ csrfToken, onSelect }) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState("wardno");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -316,6 +317,7 @@ function SearchPage({ csrfToken, onSelect }) {
           q: query.trim(),
           page: String(page),
           limit: "20",
+          sortBy,
         });
         const data = await apiRequest(`/api/voters/search?${params}`, {
           csrfToken,
@@ -332,7 +334,7 @@ function SearchPage({ csrfToken, onSelect }) {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [query, page, csrfToken]);
+  }, [query, page, sortBy, csrfToken]);
 
   return (
     <section className="page-content">
@@ -357,6 +359,18 @@ function SearchPage({ csrfToken, onSelect }) {
               setPage(1);
             }}
           />
+        </label>
+        <label className="search-label sort-label">
+          Sort by
+          <select
+            value={sortBy}
+            onChange={(event) => { setSortBy(event.target.value); setPage(1); }}
+          >
+            <option value="wardno">Ward Number</option>
+            <option value="serialNumber">Serial Number</option>
+            <option value="voterNameEn">Name (A–Z)</option>
+            <option value="age">Age</option>
+          </select>
         </label>
         <p className="muted search-help">
           English-name matching is case-insensitive and partial.

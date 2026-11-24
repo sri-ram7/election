@@ -351,6 +351,30 @@ dd[lang="te"],
   font-weight: 600;
 }
 
+.sort-label {
+  margin-top: 14px;
+  max-width: 220px;
+}
+
+.sort-label select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.sort-label select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
 .search-help {
   margin: 8px 0 22px;
   font-size: 13px;
